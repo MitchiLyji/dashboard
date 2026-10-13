@@ -1,0 +1,843 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05090d">
+<meta name="robots" content="noindex">
+<title>Mitchis Kommandozentrale</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: HUD-Leitstand. Kopfzeile mit Reaktor-Uhr und Schnellzugriff, darunter ein 12-Spalten-Raster:
+   Märkte | Kalender | Aufgaben, dann Nachrichten + Immobilien. Auf dem Handy eine Spalte. Bewusst nur dunkel. */
+:root{
+  color-scheme: dark;
+  --void:#05090d;          /* Grund */
+  --panel:#0a1219;         /* Panelfläche */
+  --panel-2:#0e1922;       /* erhöhte Fläche */
+  --line:#17323f;          /* Gitter, Rahmen */
+  --ink:#d6eef5;           /* Text */
+  --ink-dim:#7c9aa6;       /* Nebentext */
+  --arc:#4fd8ff;           /* Reaktor-Cyan, Akzent */
+  --arc-soft:rgba(79,216,255,.14);
+  --amber:#ffb547;         /* To-do-Markierung */
+  --up:#3ee6a0;            /* Kurs steigt */
+  --down:#ff5f6d;          /* Kurs fällt */
+  --f-display:"Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-data:"JetBrains Mono", Consolas, "Courier New", monospace;
+}
+*{box-sizing:border-box}
+html,body{background:var(--void)}
+body{
+  color:var(--ink); font-family:var(--f-body); font-size:14px; line-height:1.45;
+  padding-inline:16px; padding-block:16px 32px;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(79,216,255,.08), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(79,216,255,.025) 0 1px, transparent 1px 4px),
+    var(--void);
+  min-height:100%;
+}
+a{color:inherit}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--arc);outline-offset:2px}
+.wrap{max-width:1600px;margin-inline:auto;display:grid;gap:14px}
+
+/* ---------- Panels ---------- */
+.panel{
+  position:relative; background:linear-gradient(180deg,var(--panel-2),var(--panel));
+  border:1px solid var(--line); padding:14px 16px 16px; min-width:0;
+  clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));
+}
+.panel::before{ /* Eckmarken */
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:
+    linear-gradient(var(--arc),var(--arc)) left top/18px 1px no-repeat,
+    linear-gradient(var(--arc),var(--arc)) left top/1px 18px no-repeat,
+    linear-gradient(var(--arc),var(--arc)) right bottom/18px 1px no-repeat,
+    linear-gradient(var(--arc),var(--arc)) right bottom/1px 18px no-repeat;
+  opacity:.7;
+}
+.ph{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.ph h2{
+  margin:0;font-family:var(--f-display);font-weight:600;font-size:13px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--arc);
+}
+.ph h2 span{color:var(--ink-dim);font-weight:500;margin-right:8px}
+.stamp{font-family:var(--f-data);font-size:11px;color:var(--ink-dim);display:flex;align-items:center;gap:6px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ink-dim);display:inline-block}
+.dot.live{background:var(--up);box-shadow:0 0 8px var(--up)}
+.dot.stale{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.muted{color:var(--ink-dim)}
+.num{font-family:var(--f-data);font-variant-numeric:tabular-nums}
+
+/* ---------- Kopfzeile ---------- */
+.head{display:grid;grid-template-columns:auto 1fr;gap:22px;align-items:center}
+.reactor{position:relative;width:150px;height:150px;flex:none}
+.reactor svg{width:100%;height:100%;display:block}
+.reactor .spin{transform-origin:75px 75px;animation:spin 24s linear infinite}
+.reactor .spin2{transform-origin:75px 75px;animation:spin 40s linear infinite reverse}
+@keyframes spin{to{transform:rotate(360deg)}}
+.clock{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.clock .t{font-family:var(--f-display);font-size:34px;font-weight:600;letter-spacing:.04em;line-height:1;text-shadow:0 0 18px rgba(79,216,255,.55)}
+.clock .s{font-family:var(--f-data);font-size:12px;color:var(--arc);margin-top:4px}
+.greet{display:grid;gap:10px;min-width:0}
+.greet h1{margin:0;font-family:var(--f-display);font-weight:600;font-size:clamp(22px,3vw,34px);letter-spacing:.02em;text-wrap:balance}
+.greet .date{font-family:var(--f-data);color:var(--ink-dim);font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+.links{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.lnk{
+  display:inline-flex;align-items:center;gap:8px;text-decoration:none;
+  font-family:var(--f-display);font-weight:500;font-size:13px;letter-spacing:.08em;text-transform:uppercase;
+  padding:8px 14px;border:1px solid var(--line);background:var(--arc-soft);
+  transition:border-color .15s, box-shadow .15s, color .15s;
+}
+.lnk:hover{border-color:var(--arc);box-shadow:0 0 14px rgba(79,216,255,.35);color:#fff}
+.lnk b{font-family:var(--f-data);font-weight:500;font-size:10px;color:var(--arc);border:1px solid currentColor;padding:1px 4px}
+
+/* ---------- Raster ---------- */
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
+.c-mkt{grid-column:span 5}
+.c-cal{grid-column:span 4}
+.c-todo{grid-column:span 3}
+.c-news{grid-column:span 5}
+.c-immo{grid-column:span 7}
+@media (max-width:1280px){
+  .c-mkt{grid-column:span 7}.c-cal{grid-column:span 5}.c-todo{grid-column:span 12}
+  .c-news{grid-column:span 5}.c-immo{grid-column:span 7}
+}
+@media (max-width:900px){
+  .c-mkt,.c-cal,.c-todo,.c-news,.c-immo{grid-column:span 12}
+  .head{grid-template-columns:1fr;justify-items:center;text-align:center}
+  .links{justify-content:center}
+}
+
+/* ---------- Märkte ---------- */
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tile{border:1px solid var(--line);background:rgba(5,9,13,.55);padding:10px 12px;display:grid;gap:2px;min-width:0}
+.tile .k{font-family:var(--f-display);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);display:flex;justify-content:space-between;gap:6px}
+.tile .k em{font-style:normal;color:var(--arc)}
+.tile .v{font-family:var(--f-data);font-size:20px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .d{font-family:var(--f-data);font-size:12px;display:flex;gap:10px;flex-wrap:wrap}
+.up{color:var(--up)}.down{color:var(--down)}.flat{color:var(--ink-dim)}
+.etf{margin-top:12px;border:1px solid var(--line);background:rgba(5,9,13,.55);padding:12px}
+.etf-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.etf-name{font-family:var(--f-display);font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+.etf-sub{font-family:var(--f-data);font-size:11px;color:var(--ink-dim)}
+.etf-px{font-family:var(--f-data);font-size:26px;font-variant-numeric:tabular-nums;line-height:1.1}
+.seg{display:inline-flex;border:1px solid var(--line)}
+.seg button{background:none;border:0;padding:5px 11px;font-family:var(--f-data);font-size:12px;color:var(--ink-dim);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--arc);color:var(--void);font-weight:500}
+.seg button:not([aria-pressed="true"]):hover{color:var(--ink)}
+.etf-perf{display:flex;align-items:baseline;gap:10px;margin-top:10px;font-family:var(--f-data)}
+.etf-perf .big{font-size:22px}
+.chart{margin-top:10px;height:120px;position:relative}
+.chart svg{width:100%;height:100%;display:block}
+.chart .empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;font-size:12px;color:var(--ink-dim);border:1px dashed var(--line);padding:10px}
+
+/* ---------- Kalender ---------- */
+.cal-nav{display:flex;align-items:center;gap:6px}
+.icon-btn{background:none;border:1px solid var(--line);width:30px;height:30px;display:grid;place-items:center;cursor:pointer;color:var(--ink-dim)}
+.icon-btn:hover{border-color:var(--arc);color:var(--arc)}
+.cal-title{font-family:var(--f-display);font-size:15px;letter-spacing:.06em;min-width:9.5em;text-align:center}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.cal .dow{font-family:var(--f-data);font-size:10px;color:var(--ink-dim);text-align:center;padding-bottom:4px;letter-spacing:.1em}
+.day{
+  aspect-ratio:1/1;max-width:100%;border:1px solid transparent;background:rgba(5,9,13,.5);
+  display:grid;grid-template-rows:1fr auto;padding:4px;cursor:pointer;font-family:var(--f-data);font-size:12px;text-align:left;
+}
+.day:hover{border-color:var(--line)}
+.day.out{opacity:.35}
+.day.today{border-color:var(--arc);box-shadow:inset 0 0 12px rgba(79,216,255,.25)}
+.day.sel{background:var(--arc-soft);border-color:var(--arc)}
+.day .marks{display:flex;gap:3px;flex-wrap:wrap}
+.day .m{width:6px;height:6px;border-radius:50%}
+.m.ev{background:var(--arc)}.m.td{background:var(--amber)}
+.agenda{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;display:grid;gap:8px}
+.agenda h3{margin:0;font-family:var(--f-display);font-size:13px;font-weight:500;letter-spacing:.08em}
+.items{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.item{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:6px 8px;background:rgba(5,9,13,.55);border-left:2px solid var(--arc);min-width:0}
+.item.todo{border-left-color:var(--amber)}
+.item .tm{font-family:var(--f-data);font-size:12px;color:var(--arc);min-width:3.2em}
+.item.todo .tm{color:var(--amber)}
+.item .tx{min-width:0;overflow-wrap:anywhere}
+.item.done .tx{text-decoration:line-through;color:var(--ink-dim)}
+.del{background:none;border:0;color:var(--ink-dim);cursor:pointer;font-family:var(--f-data);font-size:11px;padding:2px 6px}
+.del:hover{color:var(--down)}
+.del.arm{color:var(--down);border:1px solid var(--down)}
+form.add{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:6px}
+form.add input{background:var(--void);border:1px solid var(--line);padding:7px 9px;min-width:0}
+form.add input:focus{border-color:var(--arc);outline:none}
+form.add input[type=date],form.add input[type=time]{font-family:var(--f-data);font-size:12px}
+.btn{background:var(--arc);color:var(--void);border:0;padding:7px 12px;font-family:var(--f-display);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:12px;cursor:pointer}
+.btn:hover{box-shadow:0 0 14px rgba(79,216,255,.55)}
+.btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+@media (max-width:520px){form.add{grid-template-columns:1fr 1fr}form.add input[type=text]{grid-column:1/-1}}
+
+/* ---------- Aufgaben ---------- */
+.todo-form{grid-template-columns:minmax(0,1fr) auto auto}
+@media (max-width:1280px) and (min-width:901px){.todo-wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px}}
+.grp{display:grid;gap:6px;margin-top:12px}
+.grp h3{margin:0;font-family:var(--f-data);font-size:11px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);display:flex;justify-content:space-between}
+.chk{appearance:none;width:16px;height:16px;border:1px solid var(--amber);margin:0;cursor:pointer;display:grid;place-items:center;background:transparent}
+.chk:checked{background:var(--amber)}
+.chk:checked::after{content:"";width:8px;height:4px;border:2px solid var(--void);border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
+.tdate{font-family:var(--f-data);font-size:11px;color:var(--amber)}
+.tdate.over{color:var(--down)}
+.empty-note{font-size:12px;color:var(--ink-dim);padding:8px;border:1px dashed var(--line)}
+.toggle{background:none;border:0;color:var(--ink-dim);font-family:var(--f-data);font-size:11px;cursor:pointer;text-decoration:underline;padding:0}
+
+/* ---------- Nachrichten & Immobilien ---------- */
+.news-list{display:grid;gap:8px}
+.news-a{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;text-decoration:none;padding:10px 12px;border:1px solid var(--line);background:rgba(5,9,13,.55)}
+.news-a:hover{border-color:var(--arc)}
+.news-a .tag{font-family:var(--f-data);font-size:10px;color:var(--arc);border:1px solid currentColor;padding:2px 6px;letter-spacing:.1em}
+.news-a .ttl{font-family:var(--f-display);font-size:15px;letter-spacing:.04em}
+.news-a .go{font-family:var(--f-data);color:var(--ink-dim)}
+.immo-crit{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{font-family:var(--f-data);font-size:11px;padding:3px 8px;border:1px solid var(--line);color:var(--ink-dim)}
+.chip b{color:var(--ink);font-weight:500}
+.portal{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:600px){.portal{grid-template-columns:1fr}}
+.portal a{display:grid;gap:4px;text-decoration:none;padding:12px;border:1px solid var(--line);background:rgba(5,9,13,.55)}
+.portal a:hover{border-color:var(--arc);box-shadow:0 0 14px rgba(79,216,255,.2)}
+.portal .pn{font-family:var(--f-display);font-size:15px;letter-spacing:.04em}
+.portal .pd{font-size:12px;color:var(--ink-dim)}
+.listings{display:grid;gap:6px;margin-top:12px}
+.listing{display:grid;grid-template-columns:1fr auto;gap:4px 12px;text-decoration:none;padding:10px 12px;border:1px solid var(--line);background:rgba(5,9,13,.55)}
+.listing:hover{border-color:var(--arc)}
+.listing .lt{font-weight:500;min-width:0;overflow-wrap:anywhere}
+.listing .lp{font-family:var(--f-data);color:var(--arc);white-space:nowrap}
+.listing .lm{grid-column:1/-1;font-family:var(--f-data);font-size:11px;color:var(--ink-dim)}
+.foot{font-family:var(--f-data);font-size:11px;color:var(--ink-dim);text-align:center;letter-spacing:.06em}
+
+@media (prefers-reduced-motion:reduce){.reactor .spin,.reactor .spin2{animation:none}}
+
+/* ---------- Ergänzungen Weg B ---------- */
+.acct{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-family:var(--f-data);font-size:12px;color:var(--ink-dim)}
+.acct .btn-ghost{background:none;border:1px solid var(--line);padding:5px 10px;cursor:pointer;font-family:var(--f-data);font-size:11px;color:var(--ink-dim)}
+.acct .btn-ghost:hover{border-color:var(--arc);color:var(--arc)}
+.signin{display:grid;gap:10px;justify-items:start;padding:14px;border:1px dashed var(--line);margin-top:6px}
+.signin p{margin:0;color:var(--ink-dim);font-size:13px}
+.tabs{display:inline-flex;border:1px solid var(--line)}
+.tabs button{background:none;border:0;padding:5px 11px;font-family:var(--f-data);font-size:12px;color:var(--ink-dim);cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--arc);color:var(--void);font-weight:500}
+.news-items{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.news-items a{display:grid;gap:3px;text-decoration:none;padding:9px 12px;border:1px solid var(--line);background:rgba(5,9,13,.55)}
+.news-items a:hover{border-color:var(--arc)}
+.news-items .top{font-family:var(--f-data);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--arc);display:flex;justify-content:space-between;gap:8px}
+.news-items .top span:last-child{color:var(--ink-dim)}
+.news-items .hl{font-family:var(--f-display);font-size:15px;font-weight:500;letter-spacing:.02em;text-wrap:balance}
+.news-items .fs{font-size:12.5px;color:var(--ink-dim);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tv{margin-top:10px;height:300px;min-width:0}
+.tv .tradingview-widget-container{height:100%}
+.err{font-size:12px;color:var(--amber);padding:8px;border:1px solid rgba(255,181,71,.35)}
+.olk{grid-column:1/-1;font-size:12px;color:var(--ink-dim);display:flex;gap:8px;align-items:center;cursor:pointer}
+.olk input{accent-color:var(--arc)}
+.setup{scroll-margin-top:16px}
+.setup-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:700px){.setup-grid{grid-template-columns:1fr}}
+.field{display:grid;gap:5px;min-width:0}
+.field label{font-family:var(--f-display);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--arc)}
+.field input{background:var(--void);border:1px solid var(--line);padding:8px 10px;font-family:var(--f-data);font-size:12px;min-width:0}
+.field input:focus{border-color:var(--arc);outline:none}
+.field small{color:var(--ink-dim);font-size:11.5px}
+.setup-actions{grid-column:1/-1;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.pair{grid-column:1/-1;display:flex;gap:18px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px}
+.pair p{margin:4px 0 8px;font-size:12.5px;max-width:44ch}
+.qr{background:#fff;padding:10px;width:max-content;max-width:100%}
+.ev-src{font-family:var(--f-data);font-size:10px;color:var(--ink-dim);border:1px solid var(--line);padding:1px 5px;margin-left:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="panel head">
+    <div class="reactor" aria-hidden="true">
+      <svg viewBox="0 0 150 150">
+        <circle cx="75" cy="75" r="70" fill="none" stroke="#17323f" stroke-width="1"/>
+        <g class="spin2"><circle cx="75" cy="75" r="70" fill="none" stroke="#4fd8ff" stroke-width="2" stroke-dasharray="4 10" opacity=".55"/></g>
+        <g class="spin"><circle cx="75" cy="75" r="62" fill="none" stroke="#4fd8ff" stroke-width="1.5" stroke-dasharray="60 30 12 30" opacity=".85"/></g>
+        <circle id="secRing" cx="75" cy="75" r="55" fill="none" stroke="#4fd8ff" stroke-width="3" stroke-linecap="round" transform="rotate(-90 75 75)" stroke-dasharray="0 346" opacity=".9"/>
+        <circle cx="75" cy="75" r="48" fill="rgba(79,216,255,.05)" stroke="#17323f"/>
+      </svg>
+      <div class="clock"><div><div class="t num" id="clk">--:--</div><div class="s" id="sec">:--</div></div></div>
+    </div>
+    <div class="greet">
+      <div class="date" id="dateLine">—</div>
+      <h1 id="greeting">Willkommen, Mitchi</h1>
+      <nav class="links" aria-label="Schnellzugriff">
+        <a class="lnk" href="https://posteo.de/webmail/" target="_blank" rel="noopener"><b>MAIL</b>Posteo</a>
+        <a class="lnk" href="https://mail.google.com/mail/u/0/#inbox" target="_blank" rel="noopener"><b>MAIL</b>Gmail</a>
+        <a class="lnk" href="https://www.gmx.net/" target="_blank" rel="noopener"><b>MAIL</b>GMX</a>
+        <a class="lnk" href="https://www.tagesschau.de/" target="_blank" rel="noopener"><b>NEWS</b>Tagesschau</a>
+        <a class="lnk" href="https://www.amazon.de/" target="_blank" rel="noopener"><b>SHOP</b>Amazon</a>
+        <a class="lnk" href="https://outlook.live.com/calendar/" target="_blank" rel="noopener"><b>CAL</b>Outlook</a>
+      </nav>
+      <div class="acct" id="acct"></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="panel c-mkt" aria-labelledby="h-mkt">
+      <div class="ph"><h2 id="h-mkt"><span>01</span>Märkte</h2><div class="stamp" id="mktStamp"><i class="dot"></i>Lade Kurse …</div></div>
+      <div class="tiles" id="tiles">
+        <div class="tile"><div class="k">Bitcoin <em>BTC</em></div><div class="v muted">—</div><div class="d muted">&nbsp;</div></div>
+        <div class="tile"><div class="k">Ethereum <em>ETH</em></div><div class="v muted">—</div><div class="d muted">&nbsp;</div></div>
+        <div class="tile"><div class="k">Solana <em>SOL</em></div><div class="v muted">—</div><div class="d muted">&nbsp;</div></div>
+        <div class="tile"><div class="k">Gold <em>1 oz</em></div><div class="v muted">—</div><div class="d muted">&nbsp;</div></div>
+      </div>
+      <div class="etf">
+        <div class="etf-top">
+          <div>
+            <div class="etf-name">iShares Core MSCI World</div>
+            <div class="etf-sub">WKN A0RPWH · ISIN IE00B4L5Y983 · Xetra</div>
+          </div>
+        </div>
+        <div class="tv" id="tv"></div>
+      </div>
+    </section>
+
+    <section class="panel c-cal" aria-labelledby="h-cal">
+      <div class="ph">
+        <h2 id="h-cal"><span>02</span>Kalender</h2>
+        <div class="cal-nav">
+          <button class="icon-btn" type="button" id="calPrev" aria-label="Vorheriger Monat">‹</button>
+          <div class="cal-title" id="calTitle">—</div>
+          <button class="icon-btn" type="button" id="calNext" aria-label="Nächster Monat">›</button>
+          <button class="icon-btn" type="button" id="calToday" aria-label="Zu heute springen" title="Heute">◎</button>
+        </div>
+      </div>
+      <div class="cal" id="cal"></div>
+      <div class="agenda">
+        <h3 id="agTitle">—</h3>
+        <ul class="items" id="agList"></ul>
+        <form class="add" id="evForm" autocomplete="off">
+          <input type="text" id="evTitle" placeholder="Neuer Termin …" aria-label="Termin" required>
+          <input type="date" id="evDate" aria-label="Datum" required>
+          <input type="time" id="evTime" aria-label="Uhrzeit (optional)">
+          <button class="btn" type="submit" id="evAdd">Eintragen</button>
+          <label class="olk"><input type="checkbox" id="evOutlook" checked> Auch in Outlook anlegen (öffnet Outlook zum Speichern)</label>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel c-todo" aria-labelledby="h-todo">
+      <div class="ph"><h2 id="h-todo"><span>03</span>Aufgaben</h2><button class="toggle" type="button" id="toggleDone">Erledigte ausblenden</button></div>
+      <form class="add todo-form" id="tdForm" autocomplete="off">
+        <input type="text" id="tdTitle" placeholder="Neue Aufgabe …" aria-label="Aufgabe" required>
+        <input type="date" id="tdDate" aria-label="Datum (optional)" title="Mit Datum erscheint die Aufgabe auch im Kalender">
+        <button class="btn" type="submit" id="tdAdd">+</button>
+      </form>
+      <div class="todo-wrap" id="todoGroups"></div>
+    </section>
+
+    <section class="panel c-news" aria-labelledby="h-news">
+      <div class="ph">
+        <h2 id="h-news"><span>04</span>Tagesschau</h2>
+        <div class="tabs" role="group" aria-label="Rubrik">
+          <button type="button" data-r="inland" aria-pressed="true">Inland</button>
+          <button type="button" data-r="ausland" aria-pressed="false">Ausland</button>
+          <button type="button" data-r="wissen" aria-pressed="false">Umwelt</button>
+        </div>
+      </div>
+      <ul class="news-items" id="news"><li class="empty-note">Lade Meldungen …</li></ul>
+      <div class="stamp" id="newsStamp" style="margin-top:8px"></div>
+    </section>
+
+    <section class="panel c-immo" aria-labelledby="h-immo">
+      <div class="ph"><h2 id="h-immo"><span>05</span>Immobilien</h2><div class="stamp">Aktuelle Treffer bei den Portalen</div></div>
+      <div class="immo-crit">
+        <span class="chip">Ort <b>Dresden</b></span>
+        <span class="chip">Umkreis <b>50 km</b></span>
+        <span class="chip">Objekt <b>Haus kaufen</b></span>
+        <span class="chip">Grundstück <b>ab 10.000 m²</b></span>
+      </div>
+      <div class="portal">
+        <a href="https://www.immobilienscout24.de/Suche/radius/haus-kaufen?centerofsearchaddress=Dresden;;;;;&amp;geocoordinates=51.05089;13.73832;50.0&amp;plotarea=10000.0-" target="_blank" rel="noopener"><span class="pn">ImmoScout24 ↗</span><span class="pd">Größtes Portal, Filter sind vorbelegt</span></a>
+        <a href="https://www.immowelt.de/suche/dresden/haeuser/kaufen?r=50&amp;grundmin=10000" target="_blank" rel="noopener"><span class="pn">Immowelt ↗</span><span class="pd">Inklusive ehemaliger Immonet-Angebote</span></a>
+        <a href="https://www.kleinanzeigen.de/s-haus-kaufen/dresden/c208l3820r50" target="_blank" rel="noopener"><span class="pn">Kleinanzeigen ↗</span><span class="pd">Viele Privatangebote, Fläche ggf. nachfiltern</span></a>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel setup" id="setup" hidden aria-labelledby="h-setup">
+    <div class="ph"><h2 id="h-setup"><span>⚙</span>Einstellungen</h2><button class="toggle" type="button" id="setupClose">Schließen</button></div>
+    <div class="setup-grid">
+      <div class="field">
+        <label for="ghToken">GitHub-Schlüssel für den Speicher</label>
+        <input type="password" id="ghToken" placeholder="ghp_…" autocomplete="off" spellcheck="false">
+        <small>Wird nur in diesem Browser gespeichert, nie im Code. Berechtigung: nur „gist“.</small>
+      </div>
+      <div class="field">
+        <label for="icsUrl">Outlook-Kalender (ICS-Link)</label>
+        <input type="url" id="icsUrl" placeholder="https://outlook.live.com/owa/calendar/…/calendar.ics" autocomplete="off" spellcheck="false">
+        <small>Wird im privaten Speicher abgelegt und gilt damit auch auf dem Handy.</small>
+      </div>
+      <div class="setup-actions">
+        <button class="btn" type="button" id="setupSave">Speichern &amp; verbinden</button>
+        <span class="muted" id="setupMsg"></span>
+      </div>
+      <div class="pair" id="pair" hidden>
+        <div>
+          <strong>Handy verbinden</strong>
+          <p class="muted">Scanne den Code mit der Handy-Kamera. Das Dashboard öffnet sich und übernimmt den Schlüssel. Zeig den Code niemandem sonst.</p>
+          <button class="toggle" type="button" id="pairShow">Code anzeigen</button>
+        </div>
+        <div id="qr" class="qr" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot" id="foot">Kurse und Nachrichten aktualisieren sich alle 15 Minuten. Aufgaben und eigene Termine werden zwischen deinen Geräten synchronisiert.</div>
+</div>
+
+<script>
+/* =====================================================================
+   EINSTELLUNGEN – normalerweise musst du hier nichts ändern.
+   GitHub-Schlüssel und Outlook-Link trägst du im Dashboard unter ⚙ ein.
+   ===================================================================== */
+const CONFIG = {
+  SITE_URL: "https://mitchilyji.github.io/dashboard/",
+  REFRESH_MIN: 15,                 // Kurse, Nachrichten, Kalender neu laden (Minuten)
+  ETF_SYMBOL: "XETR:EUNL",         // TradingView-Symbol des ETF
+  NEWS_COUNT: 6,
+  GIST_NAME: "Kommandozentrale Daten",
+  GIST_FILE: "kommandozentrale.json"
+};
+
+(function(){
+"use strict";
+const $ = id => document.getElementById(id);
+const DE = "de-DE";
+const eur = (v,d=2) => v==null||isNaN(v) ? "—" : new Intl.NumberFormat(DE,{style:"currency",currency:"EUR",minimumFractionDigits:d,maximumFractionDigits:d}).format(v);
+const pct = v => v==null||isNaN(v) ? "—" : (v>0?"+":v<0?"−":"±")+new Intl.NumberFormat(DE,{minimumFractionDigits:2,maximumFractionDigits:2}).format(Math.abs(v))+" %";
+const cls = v => v==null||isNaN(v) ? "flat" : v>0 ? "up" : v<0 ? "down" : "flat";
+const pad = n => String(n).padStart(2,"0");
+const iso = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const parseISO = s => { const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); };
+const addDays = (s,n) => { const d=parseISO(s); d.setDate(d.getDate()+n); return iso(d); };
+const hhmm = d => pad(d.getHours())+":"+pad(d.getMinutes());
+const nowISO = () => new Date().toISOString();
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+function el(tag, attrs, ...kids){ const n=document.createElement(tag); if(attrs) for(const k in attrs){ if(k==="class") n.className=attrs[k]; else if(k==="text") n.textContent=attrs[k]; else n.setAttribute(k,attrs[k]); } for(const c of kids) if(c!=null) n.append(c); return n; }
+const store = { get(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v);}catch(e){return d;} }, set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }, del(k){ try{ localStorage.removeItem(k); }catch(e){} } };
+function note(t){ $("foot").textContent = t; }
+
+/* ============================ Uhr ============================ */
+function isoWeek(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-day); const y0=new Date(Date.UTC(t.getUTCFullYear(),0,1)); return Math.ceil(((t-y0)/864e5+1)/7); }
+let lastDay="";
+function tick(){
+  const n=new Date();
+  $("clk").textContent=hhmm(n); $("sec").textContent=":"+pad(n.getSeconds());
+  const C=2*Math.PI*55; $("secRing").setAttribute("stroke-dasharray",(C*n.getSeconds()/60).toFixed(1)+" "+C.toFixed(1));
+  const day=iso(n);
+  if(day!==lastDay){
+    lastDay=day;
+    $("dateLine").textContent=new Intl.DateTimeFormat(DE,{weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(n)+" · KW "+isoWeek(n);
+    const h=n.getHours();
+    $("greeting").textContent=(h<5?"Gute Nacht":h<11?"Guten Morgen":h<18?"Guten Tag":"Guten Abend")+", Mitchi";
+    renderCal(); renderTodos();
+  }
+}
+
+/* ============================ Märkte ============================ */
+async function getJSON(url, opts){ const r=await fetch(url, opts); if(!r.ok) throw new Error(r.status+" "+url); return r.json(); }
+async function loadMarkets(){
+  const stamp=$("mktStamp");
+  try{
+    const cg = await getJSON("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,pax-gold&vs_currencies=eur&include_24hr_change=true");
+    // Gold-Spotpreis (USD/oz) × EZB-Kurs; Fallback: PAX Gold (1 Token = 1 Feinunze)
+    let gold = cg["pax-gold"] ? {price:cg["pax-gold"].eur, ch:cg["pax-gold"].eur_24h_change} : null;
+    try{
+      const [g, fx] = await Promise.all([ getJSON("https://api.gold-api.com/price/XAU"), getJSON("https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR") ]);
+      if(g && g.price && fx && fx.rates && fx.rates.EUR) gold = {price:g.price*fx.rates.EUR, ch: gold ? gold.ch : null};
+    }catch(e){ /* Fallback bleibt */ }
+    const t=$("tiles"); t.textContent="";
+    [["bitcoin","Bitcoin","BTC"],["ethereum","Ethereum","ETH"],["solana","Solana","SOL"]].forEach(([id,name,sym])=>{
+      const c=cg[id]||{};
+      t.append(el("div",{class:"tile"}, el("div",{class:"k"},name,el("em",{text:sym})), el("div",{class:"v",text:eur(c.eur)}), el("div",{class:"d"}, el("span",{class:cls(c.eur_24h_change),text:"24 h "+pct(c.eur_24h_change)}))));
+    });
+    t.append(el("div",{class:"tile"}, el("div",{class:"k"},"Gold",el("em",{text:"1 oz"})), el("div",{class:"v",text:gold?eur(gold.price):"—"}), el("div",{class:"d"}, el("span",{class:cls(gold&&gold.ch),text:"24 h "+pct(gold&&gold.ch)}))));
+    stamp.textContent=""; stamp.append(el("i",{class:"dot live"}),"Stand "+hhmm(new Date()));
+  }catch(e){
+    stamp.textContent=""; stamp.append(el("i",{class:"dot stale"}),"Kurse nicht erreichbar, neuer Versuch in "+CONFIG.REFRESH_MIN+" Min.");
+  }
+}
+function mountTradingView(){
+  const box=$("tv"); box.textContent="";
+  const wrap=el("div",{class:"tradingview-widget-container"}, el("div",{class:"tradingview-widget-container__widget"}));
+  const s=document.createElement("script");
+  s.src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js"; s.async=true;
+  s.text=JSON.stringify({
+    symbols:[["MSCI World", CONFIG.ETF_SYMBOL+"|1M"]],
+    chartOnly:false, width:"100%", height:"100%", locale:"de_DE", colorTheme:"dark", isTransparent:true,
+    autosize:true, showVolume:false, hideDateRanges:false, hideMarketStatus:false, hideSymbolLogo:true,
+    scalePosition:"right", scaleMode:"Normal", fontFamily:"JetBrains Mono, monospace", fontSize:"10",
+    noTimeScale:false, valuesTracking:"1", changeMode:"price-and-percent", chartType:"area",
+    lineColor:"#4fd8ff", bottomColor:"rgba(79,216,255,0)", topColor:"rgba(79,216,255,0.25)",
+    gridLineColor:"rgba(23,50,63,0.6)", dateRanges:["1d|1","1m|30","12m|1D","60m|1W"]
+  });
+  wrap.append(s); box.append(wrap);
+}
+
+/* ============================ Tagesschau ============================ */
+let newsRessort = store.get("newsRessort","inland");
+async function viaProxy(url, asText){
+  const tries=[url, "https://api.allorigins.win/raw?url="+encodeURIComponent(url), "https://corsproxy.io/?url="+encodeURIComponent(url)];
+  for(const u of tries){ try{ const r=await fetch(u,{cache:"no-store"}); if(r.ok) return asText ? await r.text() : await r.json(); }catch(e){} }
+  throw new Error("nicht erreichbar");
+}
+async function loadNews(){
+  const list=$("news");
+  document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.r===newsRessort)));
+  let data=null;
+  try{ data=await viaProxy("https://www.tagesschau.de/api2u/news/?ressort="+newsRessort); }catch(e){}
+  list.textContent="";
+  if(!data || !Array.isArray(data.news)){
+    list.append(el("li",{class:"err",text:"Die Tagesschau ist gerade nicht erreichbar. Ein Klick oben auf Tagesschau öffnet die Seite direkt."}));
+    return;
+  }
+  let items=data.news.filter(n=>n.title && (n.shareURL||n.detailsweb));
+  if(newsRessort==="wissen"){ const k=items.filter(n=>/klima|umwelt|natur|energie|wetter|arten|wald|meer/i.test((n.title||"")+" "+(n.topline||"")+" "+(n.tags||[]).map(t=>t.tag).join(" "))); if(k.length>=3) items=k; }
+  items.slice(0,CONFIG.NEWS_COUNT).forEach(n=>{
+    const when=n.date?new Intl.DateTimeFormat(DE,{hour:"2-digit",minute:"2-digit"}).format(new Date(n.date)):"";
+    list.append(el("li",{}, el("a",{href:n.shareURL||n.detailsweb,target:"_blank",rel:"noopener"},
+      el("span",{class:"top"}, el("span",{text:n.topline||""}), el("span",{text:when})),
+      el("span",{class:"hl",text:n.title}),
+      n.firstSentence ? el("span",{class:"fs",text:n.firstSentence}) : null)));
+  });
+  $("newsStamp").textContent="Stand "+hhmm(new Date());
+}
+document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>{ newsRessort=b.dataset.r; store.set("newsRessort",newsRessort); loadNews(); }));
+
+/* ============================ Speicher (GitHub Gist) ============================ */
+// Daten: { todos:[…], termine:[…], settings:{icsUrl, updated} }
+// Jeder Eintrag hat "updated"; gelöschte Einträge bleiben 30 Tage als {deleted:true} stehen,
+// damit Laptop und Handy sich sauber abgleichen.
+let DATA = store.get("kz_data", {todos:[], termine:[], settings:{}});
+let token = store.get("kz_token", "");
+let gistId = store.get("kz_gist", "");
+let syncState = "lokal";   // lokal | ok | sync | fehler
+let saveTimer = null;
+
+(function takeTokenFromLink(){
+  const m = location.hash.match(/^#k=([A-Za-z0-9_]+)$/);
+  if(m){ token=m[1]; store.set("kz_token",token); history.replaceState(null,"",location.pathname); }
+})();
+
+async function gh(path, method="GET", body){
+  const r=await fetch("https://api.github.com"+path,{method, cache:"no-store", headers:{Authorization:"Bearer "+token, Accept:"application/vnd.github+json", "Content-Type":"application/json"}, body: body?JSON.stringify(body):undefined});
+  if(!r.ok){ const e=new Error("GitHub "+r.status); e.status=r.status; throw e; }
+  return r.json();
+}
+async function findOrCreateGist(){
+  if(gistId) return gistId;
+  for(let page=1; page<=5; page++){
+    const list=await gh("/gists?per_page=100&page="+page);
+    const hit=list.find(g=>g.description===CONFIG.GIST_NAME && g.files && g.files[CONFIG.GIST_FILE]);
+    if(hit){ gistId=hit.id; break; }
+    if(list.length<100) break;
+  }
+  if(!gistId){
+    const g=await gh("/gists","POST",{description:CONFIG.GIST_NAME, public:false, files:{[CONFIG.GIST_FILE]:{content:JSON.stringify(DATA,null,1)}}});
+    gistId=g.id;
+  }
+  store.set("kz_gist",gistId);
+  return gistId;
+}
+function mergeList(a=[], b=[]){
+  const m=new Map();
+  [...a, ...b].forEach(x=>{ if(!x||!x.id) return; const o=m.get(x.id); if(!o || (x.updated||"")>(o.updated||"")) m.set(x.id,x); });
+  const cut=new Date(Date.now()-30*864e5).toISOString();
+  return [...m.values()].filter(x=>!(x.deleted && (x.updated||"")<cut));
+}
+function merge(local, remote){
+  const ls=local.settings||{}, rs=remote.settings||{};
+  return { todos:mergeList(local.todos, remote.todos), termine:mergeList(local.termine, remote.termine), settings:((ls.updated||"")>(rs.updated||"")?ls:rs) };
+}
+async function sync(){
+  if(!token){ syncState="lokal"; renderAcct(); return; }
+  syncState="sync"; renderAcct();
+  try{
+    const id=await findOrCreateGist();
+    const g=await gh("/gists/"+id);
+    const f=g.files[CONFIG.GIST_FILE];
+    let remote={todos:[],termine:[],settings:{}};
+    if(f){ const txt=f.truncated ? await (await fetch(f.raw_url,{cache:"no-store"})).text() : f.content; try{ remote=JSON.parse(txt); }catch(e){} }
+    const merged=merge(DATA, remote);
+    const out=JSON.stringify(merged,null,1);
+    if(out!==JSON.stringify(remote,null,1)) await gh("/gists/"+id,"PATCH",{files:{[CONFIG.GIST_FILE]:{content:out}}});
+    const icsChanged=(merged.settings||{}).icsUrl!==(DATA.settings||{}).icsUrl;
+    DATA=merged; store.set("kz_data",DATA);
+    syncState="ok"; renderAll();
+    if(icsChanged) loadCalendar();
+  }catch(e){
+    if(e.status===404){ gistId=""; store.del("kz_gist"); }
+    syncState="fehler"; renderAcct();
+    note(e.status===401 ? "Der GitHub-Schlüssel ist ungültig oder abgelaufen. Trag unter ⚙ einen neuen ein." : "Abgleich mit dem Speicher hat nicht geklappt. Neuer Versuch beim nächsten Speichern.");
+  }
+}
+function changed(){
+  store.set("kz_data",DATA); renderAll();
+  clearTimeout(saveTimer); saveTimer=setTimeout(sync, 1200);
+}
+function renderAcct(){
+  const a=$("acct"); a.textContent="";
+  const txt={lokal:"Nur auf diesem Gerät gespeichert", ok:"Mit Handy & Laptop synchronisiert", sync:"Gleiche ab …", fehler:"Abgleich fehlgeschlagen"}[syncState];
+  const dot=el("i",{class:"dot "+(syncState==="ok"?"live":syncState==="lokal"?"":"stale")});
+  const b=el("button",{type:"button",class:"btn-ghost"},"⚙ Einstellungen"); b.addEventListener("click",openSetup);
+  a.append(el("span",{class:"stamp"},dot,txt), b);
+}
+
+/* ============================ Einstellungen ============================ */
+function openSetup(){
+  $("setup").hidden=false;
+  $("ghToken").value=token; $("icsUrl").value=(DATA.settings||{}).icsUrl||"";
+  $("pair").hidden=!token; $("qr").hidden=true; $("setupMsg").textContent="";
+  $("setup").scrollIntoView({behavior:"smooth"});
+}
+$("setupClose").addEventListener("click",()=>{ $("setup").hidden=true; $("qr").textContent=""; });
+$("setupSave").addEventListener("click", async()=>{
+  const t=$("ghToken").value.trim(), ics=$("icsUrl").value.trim().replace(/^webcals?:\/\//i,"https://");
+  if(t!==token){ token=t; gistId=""; store.set("kz_token",t); store.del("kz_gist"); }
+  if(ics!==((DATA.settings||{}).icsUrl||"")){ DATA.settings={icsUrl:ics, updated:nowISO()}; store.set("kz_data",DATA); }
+  $("setupMsg").textContent="Verbinde …";
+  await sync(); loadCalendar();
+  $("setupMsg").textContent = !token ? "Ohne Schlüssel bleiben die Daten nur auf diesem Gerät." : syncState==="ok" ? "Verbunden. Speicher bereit." : "Verbindung fehlgeschlagen. Prüf den Schlüssel.";
+  $("pair").hidden=!(token && syncState==="ok");
+});
+$("pairShow").addEventListener("click",()=>{
+  const box=$("qr"); box.textContent=""; box.hidden=false;
+  const link=CONFIG.SITE_URL+"#k="+token;
+  const draw=()=>{ try{ new QRCode(box,{text:link,width:200,height:200,correctLevel:QRCode.CorrectLevel.M}); }catch(e){ box.textContent="QR-Code konnte nicht erzeugt werden."; } };
+  if(window.QRCode) draw();
+  else { const s=document.createElement("script"); s.src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"; s.onload=draw; s.onerror=()=>{ box.textContent="QR-Code konnte nicht geladen werden."; }; document.head.append(s); }
+});
+
+/* ============================ Outlook-Kalender (ICS, nur lesen) ============================ */
+let icsEvents=[];    // {uid,title,start,end,time,rrule,…} Rohdaten
+let calState="";     // Statuszeile
+function unfold(t){ return t.replace(/\r\n/g,"\n").replace(/\n[ \t]/g,""); }
+function unesc(s){ return (s||"").replace(/\\n/gi," ").replace(/\\([,;\\])/g,"$1").trim(); }
+function parseDT(prop, val){
+  // liefert {date:"YYYY-MM-DD", time:"HH:MM"|"", allDay}
+  if(/VALUE=DATE(?!-TIME)/.test(prop) || /^\d{8}$/.test(val)) return {date:val.slice(0,4)+"-"+val.slice(4,6)+"-"+val.slice(6,8), time:"", allDay:true};
+  const m=val.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z?)$/); if(!m) return null;
+  if(m[7]){ const d=new Date(Date.UTC(+m[1],m[2]-1,+m[3],+m[4],+m[5])); return {date:iso(d), time:hhmm(d), allDay:false}; }
+  return {date:m[1]+"-"+m[2]+"-"+m[3], time:m[4]+":"+m[5], allDay:false};   // Ortszeit (Outlook: W. Europe Standard Time)
+}
+function parseICS(text){
+  const out=[]; let cur=null;
+  unfold(text).split("\n").forEach(line=>{
+    if(line==="BEGIN:VEVENT"){ cur={exdates:[]}; return; }
+    if(line==="END:VEVENT"){ if(cur && cur.start && cur.status!=="CANCELLED") out.push(cur); cur=null; return; }
+    if(!cur) return;
+    const i=line.indexOf(":"); if(i<0) return;
+    const prop=line.slice(0,i), val=line.slice(i+1), name=prop.split(";")[0].toUpperCase();
+    if(name==="SUMMARY") cur.title=unesc(val);
+    else if(name==="UID") cur.uid=val;
+    else if(name==="DTSTART") cur.start=parseDT(prop,val);
+    else if(name==="DTEND") cur.end=parseDT(prop,val);
+    else if(name==="RRULE") cur.rrule=val;
+    else if(name==="EXDATE") val.split(",").forEach(v=>{ const d=parseDT(prop,v); if(d) cur.exdates.push(d.date); });
+    else if(name==="RECURRENCE-ID") cur.recurId=(parseDT(prop,val)||{}).date;
+    else if(name==="STATUS") cur.status=val.toUpperCase();
+  });
+  return out;
+}
+const WD=["SU","MO","TU","WE","TH","FR","SA"];
+function expand(ev, from, to){
+  // gibt Liste von Startdaten (YYYY-MM-DD) im Fenster [from,to] zurück
+  const s=ev.start.date;
+  if(!ev.rrule) return (s<=to)?[s]:[];
+  const R={}; ev.rrule.split(";").forEach(p=>{ const [k,v]=p.split("="); R[k]=v; });
+  const interval=+(R.INTERVAL||1), count=R.COUNT?+R.COUNT:Infinity;
+  const until=R.UNTIL?parseDT("",R.UNTIL.length===8?R.UNTIL:R.UNTIL).date:"9999-12-31";
+  const end=until<to?until:to, res=[]; let n=0;
+  const push=d=>{ if(d<s) return true; if(d>end || n>=count) return false; n++; if(d>=from && !ev.exdates.includes(d)) res.push(d); return true; };
+  const base=parseISO(s);
+  if(R.FREQ==="DAILY"){ for(let i=0;i<3000;i++){ const d=new Date(base); d.setDate(base.getDate()+i*interval); if(!push(iso(d))) break; } }
+  else if(R.FREQ==="WEEKLY"){
+    const days=(R.BYDAY?R.BYDAY.split(","):[WD[base.getDay()]]).map(x=>WD.indexOf(x.slice(-2))).sort((a,b)=>((a+6)%7)-((b+6)%7));
+    const mon=new Date(base); mon.setDate(base.getDate()-((base.getDay()+6)%7));
+    outer: for(let w=0;w<1500;w++){ for(const wd of days){ const d=new Date(mon); d.setDate(mon.getDate()+w*7*interval+((wd+6)%7)); if(!push(iso(d))) break outer; } }
+  }
+  else if(R.FREQ==="MONTHLY"){
+    for(let i=0;i<600;i++){
+      const y=base.getFullYear(), mo=base.getMonth()+i*interval; let d=null;
+      if(R.BYDAY){ const mm=R.BYDAY.match(/^(-?\d)?([A-Z]{2})$/); if(mm){ const wd=WD.indexOf(mm[2]), nth=+(mm[1]||1);
+        if(nth>0){ const f=new Date(y,mo,1); const off=(wd-f.getDay()+7)%7; d=new Date(y,mo,1+off+(nth-1)*7); if(d.getMonth()!==((mo%12)+12)%12) d=null; }
+        else { const l=new Date(y,mo+1,0); const off=(l.getDay()-wd+7)%7; d=new Date(y,mo+1,-off+(nth+1)*7); } } }
+      else { const day=+(R.BYMONTHDAY||base.getDate()); d=new Date(y,mo,day); if(d.getDate()!==day) d=null; }
+      if(d && !push(iso(d))) break;
+      if(iso(new Date(y,mo,1))>end) break;
+    }
+  }
+  else if(R.FREQ==="YEARLY"){ for(let i=0;i<200;i++){ const d=new Date(base.getFullYear()+i*interval, base.getMonth(), base.getDate()); if(d.getDate()!==base.getDate()) continue; if(!push(iso(d))) break; } }
+  else if(s<=to) res.push(s);
+  return res;
+}
+let outlookByDay={};   // "YYYY-MM-DD" → [{title,time}]
+function buildOutlookDays(){
+  outlookByDay={};
+  const from=iso(new Date(viewMonth.getFullYear(),viewMonth.getMonth(),1-7)), to=iso(new Date(viewMonth.getFullYear(),viewMonth.getMonth()+1,14));
+  const overrides=new Set(icsEvents.filter(e=>e.recurId).map(e=>e.uid+"|"+e.recurId));
+  icsEvents.forEach(ev=>{
+    // Länge in Tagen (ganztägig: Ende exklusiv)
+    let span=0; if(ev.end){ span=Math.round((parseISO(ev.end.date)-parseISO(ev.start.date))/864e5); if(ev.start.allDay) span=Math.max(0,span-1); }
+    const starts = ev.recurId ? [ev.start.date] : expand(ev, addDays(from,-span), to).filter(d=>!overrides.has(ev.uid+"|"+d));
+    starts.forEach(d=>{ for(let k=0;k<=span;k++){ const key=addDays(d,k); if(key<from||key>to) continue; (outlookByDay[key]=outlookByDay[key]||[]).push({title:ev.title||"(ohne Titel)", time:k===0?ev.start.time:""}); } });
+  });
+}
+async function loadCalendar(){
+  const url=(DATA.settings||{}).icsUrl;
+  if(!url){ icsEvents=[]; calState=""; buildOutlookDays(); renderCal(); return; }
+  const cached=store.get("kz_ics",null);
+  if(cached && cached.url===url && !icsEvents.length){ icsEvents=parseICS(cached.text); buildOutlookDays(); renderCal(); }
+  try{
+    const text=await viaProxy(url, true);
+    if(!/BEGIN:VCALENDAR/.test(text)) throw new Error("kein Kalender");
+    store.set("kz_ics",{url,text});
+    icsEvents=parseICS(text); calState="Outlook · Stand "+hhmm(new Date());
+  }catch(e){ calState="Outlook-Kalender gerade nicht erreichbar"; }
+  buildOutlookDays(); renderCal();
+}
+
+/* ============================ Kalender-Ansicht ============================ */
+let selDay=iso(new Date());
+let viewMonth=(()=>{const d=new Date(); return new Date(d.getFullYear(),d.getMonth(),1);})();
+let hideDone=store.get("hideDone",false);
+const live = arr => (arr||[]).filter(x=>!x.deleted);
+const norm = s => (s||"").toLowerCase().replace(/\s+/g," ").trim();
+
+function dayItems(day){
+  const ol=(outlookByDay[day]||[]).slice();
+  const olTitles=new Set(ol.map(o=>norm(o.title)));
+  // eigene Termine ausblenden, sobald Outlook denselben Termin liefert
+  const own=live(DATA.termine).filter(t=>t.date===day && !(t.outlook && olTitles.has(norm(t.title))));
+  const ev=[...ol.map(o=>({title:o.title,time:o.time,src:"outlook"})), ...own.map(t=>({id:t.id,title:t.title,time:t.time,src:"eigen"}))]
+    .sort((a,b)=>(a.time||"99").localeCompare(b.time||"99"));
+  const td=live(DATA.todos).filter(t=>t.date===day);
+  return {ev,td};
+}
+function renderCal(){
+  const cal=$("cal"); cal.textContent="";
+  ["MO","DI","MI","DO","FR","SA","SO"].forEach(d=>cal.append(el("div",{class:"dow",text:d})));
+  $("calTitle").textContent=new Intl.DateTimeFormat(DE,{month:"long",year:"numeric"}).format(viewMonth);
+  const offset=(viewMonth.getDay()+6)%7, start=new Date(viewMonth); start.setDate(1-offset);
+  const today=iso(new Date());
+  for(let i=0;i<42;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i); const key=iso(d);
+    const {ev,td}=dayItems(key);
+    const b=el("button",{type:"button",class:"day"+(d.getMonth()!==viewMonth.getMonth()?" out":"")+(key===today?" today":"")+(key===selDay?" sel":""),"aria-label":new Intl.DateTimeFormat(DE,{dateStyle:"full"}).format(d)+(ev.length+td.length?`, ${ev.length} Termine, ${td.length} Aufgaben`:"")});
+    const m=el("div",{class:"marks"}); ev.slice(0,3).forEach(()=>m.append(el("i",{class:"m ev"}))); td.slice(0,3).forEach(()=>m.append(el("i",{class:"m td"})));
+    b.append(el("span",{text:String(d.getDate())}),m);
+    b.addEventListener("click",()=>{ selDay=key; $("evDate").value=key; renderCal(); });
+    cal.append(b);
+  }
+  renderAgenda();
+}
+function armDelete(btn, fn){
+  btn.addEventListener("click",()=>{ if(btn.classList.contains("arm")){ fn(); return; } btn.classList.add("arm"); btn.textContent="löschen?"; setTimeout(()=>{ btn.classList.remove("arm"); btn.textContent="✕"; },3000); });
+}
+function renderAgenda(){
+  $("agTitle").textContent=new Intl.DateTimeFormat(DE,{weekday:"long",day:"numeric",month:"long"}).format(parseISO(selDay));
+  const list=$("agList"); list.textContent="";
+  const {ev,td}=dayItems(selDay);
+  if(!ev.length && !td.length){
+    list.append(el("li",{class:"empty-note",text:(DATA.settings||{}).icsUrl ? "Keine Termine an diesem Tag." : "Keine Termine. Unter ⚙ Einstellungen kannst du deinen Outlook-Kalender verbinden."}));
+  }
+  ev.forEach(e=>{
+    const tx=el("span",{class:"tx"}, e.title);
+    let tail;
+    if(e.src==="outlook"){ tail=el("a",{class:"del",href:"https://outlook.live.com/calendar/",target:"_blank",rel:"noopener",title:"In Outlook bearbeiten"},"Outlook ↗"); }
+    else { tail=el("button",{type:"button",class:"del","aria-label":"Termin löschen"},"✕"); armDelete(tail,()=>{ const t=DATA.termine.find(x=>x.id===e.id); if(t){ t.deleted=true; t.updated=nowISO(); changed(); } }); }
+    list.append(el("li",{class:"item"}, el("span",{class:"tm",text:e.time||"ganzt."}), tx, tail));
+  });
+  td.forEach(t=>list.append(el("li",{class:"item todo"+(t.done?" done":"")}, el("span",{class:"tm",text:"To-do"}), el("span",{class:"tx",text:t.title}), el("span",{class:"muted",text:t.done?"erledigt":""}))));
+  if(calState) list.append(el("li",{class:"stamp",text:calState}));
+}
+$("calPrev").addEventListener("click",()=>{ viewMonth=new Date(viewMonth.getFullYear(),viewMonth.getMonth()-1,1); buildOutlookDays(); renderCal(); });
+$("calNext").addEventListener("click",()=>{ viewMonth=new Date(viewMonth.getFullYear(),viewMonth.getMonth()+1,1); buildOutlookDays(); renderCal(); });
+$("calToday").addEventListener("click",()=>{ const n=new Date(); viewMonth=new Date(n.getFullYear(),n.getMonth(),1); selDay=iso(n); $("evDate").value=selDay; buildOutlookDays(); renderCal(); });
+
+function outlookCompose(title, date, time){
+  const p=new URLSearchParams({path:"/calendar/action/compose", rru:"addevent", subject:title});
+  if(time){ const s=new Date(date+"T"+time+":00"), e=new Date(s.getTime()+3600e3); p.set("startdt",date+"T"+time+":00"); p.set("enddt",iso(e)+"T"+hhmm(e)+":00"); }
+  else { p.set("startdt",date); p.set("enddt",addDays(date,1)); p.set("allday","true"); }
+  return "https://outlook.live.com/calendar/0/deeplink/compose?"+p.toString();
+}
+$("evDate").value=selDay;
+$("evForm").addEventListener("submit", ev=>{
+  ev.preventDefault();
+  const title=$("evTitle").value.trim(), date=$("evDate").value, time=$("evTime").value, toOutlook=$("evOutlook").checked;
+  if(!title||!date) return;
+  if(toOutlook) window.open(outlookCompose(title,date,time),"_blank","noopener");
+  DATA.termine=DATA.termine||[];
+  DATA.termine.push({id:uid(), title, date, time:time||"", outlook:toOutlook, created:nowISO(), updated:nowISO()});
+  $("evTitle").value=""; $("evTime").value="";
+  selDay=date; const d=parseISO(date); viewMonth=new Date(d.getFullYear(),d.getMonth(),1); buildOutlookDays();
+  changed();
+});
+
+/* ============================ Aufgaben ============================ */
+function todoRow(t){
+  const today=iso(new Date());
+  const cb=el("input",{type:"checkbox",class:"chk","aria-label":"Erledigt: "+t.title}); cb.checked=!!t.done;
+  cb.addEventListener("change",()=>{ t.done=cb.checked; t.doneAt=cb.checked?today:""; t.updated=nowISO(); changed(); });
+  const meta=el("span",{class:"tx"}, el("span",{text:t.title}));
+  if(t.date){ const over=!t.done && t.date<today; meta.append(el("br"), el("span",{class:"tdate"+(over?" over":""),text:(over?"überfällig · ":"")+new Intl.DateTimeFormat(DE,{weekday:"short",day:"2-digit",month:"2-digit"}).format(parseISO(t.date))+" · im Kalender"})); }
+  const x=el("button",{type:"button",class:"del","aria-label":"Aufgabe löschen"},"✕");
+  armDelete(x,()=>{ t.deleted=true; t.updated=nowISO(); changed(); });
+  return el("li",{class:"item todo"+(t.done?" done":"")}, cb, meta, x);
+}
+function renderTodos(){
+  const box=$("todoGroups"); box.textContent="";
+  $("toggleDone").textContent=hideDone?"Erledigte zeigen":"Erledigte ausblenden";
+  const today=iso(new Date());
+  const all=live(DATA.todos);
+  if(!all.length){ box.append(el("div",{class:"empty-note",style:"margin-top:12px",text:"Noch keine Aufgaben. Schreib oben eine hinein. Mit Datum erscheint sie zusätzlich im Kalender."})); return; }
+  // Erledigte nur zeigen, wenn sie heute abgehakt wurden
+  const vis=all.filter(t=>!t.done || (!hideDone && t.doneAt===today));
+  const byC=(a,b)=>(a.created||"").localeCompare(b.created||"");
+  [
+    ["Heute & überfällig", vis.filter(t=>t.date && t.date<=today).sort((a,b)=>a.date.localeCompare(b.date)||byC(a,b))],
+    ["Ohne Datum", vis.filter(t=>!t.date).sort((a,b)=>(a.done-b.done)||byC(a,b))],
+    ["Geplant", vis.filter(t=>t.date && t.date>today).sort((a,b)=>a.date.localeCompare(b.date))]
+  ].forEach(([name,arr])=>{
+    if(!arr.length && name!=="Heute & überfällig") return;
+    const g=el("div",{class:"grp"}, el("h3",{}, el("span",{text:name}), el("span",{text:arr.filter(t=>!t.done).length+" offen"})));
+    const ul=el("ul",{class:"items"});
+    if(!arr.length) ul.append(el("li",{class:"empty-note",text:"Für heute ist nichts offen."}));
+    arr.forEach(t=>ul.append(todoRow(t)));
+    g.append(ul); box.append(g);
+  });
+}
+$("toggleDone").addEventListener("click",()=>{ hideDone=!hideDone; store.set("hideDone",hideDone); renderTodos(); });
+$("tdForm").addEventListener("submit", ev=>{
+  ev.preventDefault();
+  const title=$("tdTitle").value.trim(), date=$("tdDate").value;
+  if(!title) return;
+  DATA.todos=DATA.todos||[];
+  DATA.todos.push({id:uid(), title, date:date||"", done:false, doneAt:"", created:nowISO(), updated:nowISO()});
+  $("tdTitle").value=""; $("tdDate").value="";
+  changed();
+});
+
+function renderAll(){ renderAcct(); renderCal(); renderTodos(); }
+
+/* ============================ Start ============================ */
+(function boot(){
+  tick(); setInterval(tick,1000);
+  renderAll();
+  mountTradingView();
+  loadMarkets(); loadNews(); loadCalendar(); sync();
+  setInterval(()=>{ loadMarkets(); loadNews(); loadCalendar(); sync(); }, CONFIG.REFRESH_MIN*60000);
+  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") sync(); });
+  if(!token) note("Tipp: Unter ⚙ Einstellungen verbindest du den Speicher, damit Aufgaben auch auf dem Handy erscheinen.");
+})();
+})();
+
+</script>
+</body>
+</html>
